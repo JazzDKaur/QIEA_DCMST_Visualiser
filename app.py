@@ -15,7 +15,7 @@ else:
     with st.sidebar:
         st.header('Instance and solution')
         folder = Path(st.text_input('Graph folder', str(ROOT/'GraphEdges'))).expanduser()
-        solution_folder = Path(st.text_input('Solution folder', str(ROOT/'solution'))).expanduser()
+        solution_folder = Path(st.text_input('Solution folder', str(ROOT/'Solution'))).expanduser()
         sources, skipped = available_solutions(folder, solution_folder)
         if not sources:
             st.info('No solutions available. Add a matching Excel workbook with a nonempty D2, D3, D4 or D5 sheet to the solution folder.')
