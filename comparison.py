@@ -65,11 +65,52 @@ def comparison_data():
     return pd.read_csv(io.StringIO(DATA), dtype=str, keep_default_na=False)
 
 
+def comparison_tables():
+    data = comparison_data()
+    for col in data.columns[1:]:
+        data[col] = pd.to_numeric(data[col], errors='coerce')
+    # The supplied first table contains the 25 combinations without published competitors.
+    ernst = data[data['HES-EA'].isna()].copy()
+    ernst = ernst[['Instance','Vertex','D','Ernst','AD-QIEA-2ES Final']]
+    ernst['Difference'] = ernst['AD-QIEA-2ES Final'] - ernst['Ernst']
+    ernst['Relative Gap'] = 100 * ernst['Difference'] / ernst['Ernst']
+    ernst = ernst.sort_values('Relative Gap', kind='stable').reset_index(drop=True)
+    published = data[data['HES-EA'].notna()].copy()
+    published = published[['Instance','Vertex','D','HES-EA','ABA','HSSGA','AD-QIEA-2ES Final']]
+    # Difference/gap use the lowest reported competitor cost, matching the supplied table.
+    reference = published[['HES-EA','ABA','HSSGA']].min(axis=1)
+    published['Difference'] = published['AD-QIEA-2ES Final'] - reference
+    published['Relative Gap'] = 100 * published['Difference'] / reference
+    published = published.sort_values('Relative Gap',kind='stable').reset_index(drop=True)
+    return ernst, published
+
+
+def gap_colour(value):
+    if value < 0:
+        return 'background-color: #d9ead3; color: #173d19'
+    if value > 0:
+        return 'background-color: #f4cccc; color: #7a1616'
+    return 'background-color: #eeeeee; color: #333333'
+
+
+def style_comparison(table):
+    formats = {col:'{:.0f}' for col in table.columns if col != 'Instance'}
+    formats['Relative Gap'] = '{:.2f}'
+    return table.style.format(formats).map(gap_colour,subset=['Difference','Relative Gap'])
+
+
 def render_comparison():
-    st.subheader('Reported solution costs')
+    st.subheader('Benchmark comparison')
     st.write(PARAGRAPH)
-    st.caption('Static values supplied for this comparison. “-” denotes an unavailable reported result. This table does not update from the selected solution workbook.')
-    st.dataframe(comparison_data(), hide_index=True, width='stretch', height=620)
-    st.download_button('Download comparison table (CSV)', DATA.encode('utf-8'),file_name='DCMST_reported_costs.csv',mime='text/csv')
+    st.caption('Static reported costs supplied for this comparison; independent of loaded solution workbooks. Green: lower cost (improvement). Grey: equal cost. Red: higher cost.')
+    ernst, published = comparison_tables()
+    st.markdown('### Comparison with Ernst reference values')
+    st.caption('25 instance-degree combinations without published competitor results. Difference = Final − Ernst. Relative Gap (%) = 100 × Difference / Ernst.')
+    st.dataframe(style_comparison(ernst),hide_index=True,width='stretch',height=920)
+    st.download_button('Download Ernst comparison (CSV)',ernst.round({'Relative Gap':2}).to_csv(index=False).encode(),file_name='DCMST_Ernst_comparison.csv',mime='text/csv')
+    st.markdown('### Comparison with published algorithms')
+    st.caption('19 overlapping instance-degree combinations. Difference = Final − lowest reported cost among HES-EA, ABA and HSSGA. Relative Gap (%) = 100 × Difference / lowest reported cost.')
+    st.dataframe(style_comparison(published),hide_index=True,width='stretch',height=710)
+    st.download_button('Download published algorithm comparison (CSV)',published.round({'Relative Gap':2}).to_csv(index=False).encode(),file_name='DCMST_published_comparison.csv',mime='text/csv')
     st.subheader('References')
     st.markdown(REFERENCES)
